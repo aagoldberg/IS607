@@ -9,10 +9,9 @@ output: html_document
 
 a. "[0-9]+\\$"
 
-[0-9] matches any digit, the '+' allows for additional digits, and the string ends with a dollar sign. And, makes me assume this chapter was written by the Swiss professor. 
+[0-9] matches any digit, the '+' allows for additional digits, and the string ends with a dollar sign.
 
 ```{r}
-#examples
 library("stringr")
 a_ex = c("1$", "12$", "123$")
 grep(pattern = "[0-9]+\\$", a_ex, value = TRUE)
@@ -31,9 +30,11 @@ c. ".*?\\.txt$"
 
 "." allows for any character; "*" allows for multiple (or zero) of those characters; the "?" makes the previous characters optional, and the "\\.txt$" means the characters (making up a file name) will be followed by ".txt". 
 
+I spent some time looking into this pattern because I was having trouble breaking it. I think the "$" operator at the end is taking precendence over all of quantifiers and allowing anything as long as there's nothing after the final ".txt". I'm also not sure of the purpose of the "*" considering the "." is greedy and the "?" functions as a limiter. 
+
 ```{r}
 c_ex = c("a.txt ab.txt", "aaa.txt", "abcd.txt", "1abc.txt", ".txt", " .txt", "asdf asdf.txt", "asdf.txt asdf.txt", "asdf.txt.asdf.txt", "b a.txt a.txt")
-grep(pattern = "a.*?\\.txt", c_ex, value = TRUE)
+grep(pattern = ".*?\\.txt$", c_ex, value = TRUE)
 ```
 
 

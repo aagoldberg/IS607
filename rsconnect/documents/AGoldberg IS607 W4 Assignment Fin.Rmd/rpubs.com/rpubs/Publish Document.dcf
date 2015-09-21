@@ -1,0 +1,7 @@
+name: Publish Document
+account: rpubs
+server: rpubs.com
+bundleId:
+        https://api.rpubs.com/api/v1/document/110475/eace6419b6304c2c93f8d57fbdfbbe61
+url: http://rpubs.com/AGoldberg/110475
+when: 1442804805.23468
