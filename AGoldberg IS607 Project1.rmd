@@ -60,7 +60,7 @@ opp_rating_mtx <- matrix(prerating[opp_mtx], nrow = 7)
 str(opp_rating_mtx)
 
 #Creates vector of averaged preratings
-opp_avg_prerating <- format(apply(opp_rating_mtx, 2, mean, na.rm = TRUE), digits = 4)
+opp_avg_prerating <- as.integer(format(apply(opp_rating_mtx, 2, mean, na.rm = TRUE), digits = 4))
 str(opp_avg_prerating)
 ```
 
@@ -73,6 +73,3 @@ tourn_results
 #Exports .csv
 write.csv(tourn_results, file = "chess_results.csv")
 ```
-
-
-
