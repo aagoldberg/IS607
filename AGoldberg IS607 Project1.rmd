@@ -1,0 +1,78 @@
+---
+title: "IS607 Project 1"
+author: "Andrew Goldberg"
+date: "September 21, 2015"
+output: html_document
+---
+The following code transforms an ascii formatted chess tournament results table in a .csv.
+
+```{r}
+library("stringr")
+setwd("C:\\Users\\Andrew\\Desktop\\Cuny\\Data Acquisition\\Project 1")
+chess_grid <- readLines("tournamentinfo.txt")
+str(chess_grid)
+```
+
+
+```{r}
+#Extracts vector of player names
+player_name <- (str_trim(unlist(str_extract_all(chess_grid, "([[:alpha:] ]-?){15,31}"))))[2:65]
+str(player_name)
+```
+
+```{r}
+#Extracts vector of states
+state <- str_trim(unlist(str_extract_all(chess_grid, " MI | ON | OH ")))
+str(state)
+```
+
+```{r}
+#Extracts vector of player scores
+results <- unlist(str_extract_all(chess_grid, "[:digit:][//.][:digit:]"))
+str(results)
+```
+
+```{r}
+#Extracts vector of player preratings
+prerating <- as.integer(sub(pattern = 'R: ', replacement = '', x = unlist(str_extract_all(chess_grid, "R: [[:digit:] ]{4}"))))
+
+#add index
+names(prerating) <- (1:64)
+
+str(prerating)
+```
+
+```{r}
+#Collects rest of string following top row 'total points', with opponent data
+opp_dat <- gsub("\\|", " ", str_sub(unlist(str_extract_all(chess_grid, "[:digit:][//.][:digit:][|DLWUXBH[:digit:] ]{44}")), start = 10, end = 47))
+str(opp_dat)
+
+#Extracts list of opponent numbers
+opp_list <- (strsplit(opp_dat, " B  | L  | W  | H  | U  | X  | D  "))
+str(opp_list)
+
+#Simplifies list into numeric matrix of opponent numbers
+opp_mtx <- sapply(opp_list, as.numeric)
+str(opp_mtx)
+
+#Creates matrix of correlating preratings
+opp_rating_mtx <- matrix(prerating[opp_mtx], nrow = 7)
+str(opp_rating_mtx)
+
+#Creates vector of averaged preratings
+opp_avg_prerating <- format(apply(opp_rating_mtx, 2, mean, na.rm = TRUE), digits = 4)
+str(opp_avg_prerating)
+```
+
+```{r}
+#Combines vectors into a data frame
+tourn_results <- data.frame(player_name, state, results, prerating, opp_avg_prerating)
+str(tourn_results)
+tourn_results
+
+#Exports .csv
+write.csv(tourn_results, file = "chess_results.csv")
+```
+
+
+
