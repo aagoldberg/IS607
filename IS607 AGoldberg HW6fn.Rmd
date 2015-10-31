@@ -35,7 +35,7 @@ air_delays <- air_arr %>%
   mutate(tot_delayed = delayed / (delayed + `on time`))
 ```
 
-AM WEST has a higher proportion of delays (over 6%) than Alaska
+AM WEST has a higher proportion of delays than Alaska (over 6%)
 ```{r}
 #Create and plot delays by airline
 total_air_delays <- air_delays %>%

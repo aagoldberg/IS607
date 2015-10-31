@@ -86,7 +86,7 @@ sixa_ans2
 b. Imagine we are trying to extract the digits in the mail address. To do so we write the expression [:digit:]. Explain why this fails and correct the expression. 
 
 ```{r}
-str_extract_all(six_ex, "[:digit:]{2}")
+str_extract_all(six_ex, "[[:digit:]]+")
 str_extract_all(six_ex, "[[:digit:]]{2}")
 ```
 
