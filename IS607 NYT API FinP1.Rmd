@@ -1,0 +1,216 @@
+---
+title: "IS607 Final Project"
+author: "Andrew Goldberg"
+date: "December 13, 2015"
+output: html_document
+---
+
+```{r}
+library(jsonlite)
+library(RCurl)
+library(stringr)
+library(XML)
+library(tm)
+library(stm)
+library(SnowballC)
+library(koRpus)
+library(textreg)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(wordcloud)
+library(RTextTools)
+options(nytimesid = "55c21eb10d7a056ad11b584434ad1554:10:73343003")
+dir.create("goldberg")
+setwd("C:/Users/Andrew/Desktop/Cuny/Data Acquisition/Final Project/")
+
+nytcolumnists <- c('brooks', "dowd", "bruni", "collins", "douthat", "friedman", "kristof", "krugman")
+fullnytcolumnists <- c("DAVID+BROOKS", "MAUREEN+DOWD", "FRANK+BRUNI", "GAIL+COLLINS", "ROSS+DOUTHAT", "THOMAS+L+FRIEDMAN", "NICHOLAS+KRISTOF", "PAUL+KRUGMAN")
+
+#Create vector (may go back to fix as list) of link names
+nytcollink <- vector(length = 0)
+for(i in nytcolumnists){nytcollink <- append(nytcollink, str_c(i, "link"))}
+
+#Create list of corpus names
+nytcolcorp <- as.list(paste0(nytcolumnists,"corp"))
+names(nytcolcorp) <- nytcolumnists
+
+#Another list of names
+for(i in nytcolumnists){nytcolcorp <- append(nytcolcorp, str_c(i, "corp"))}
+
+#Collect 20 article links per author
+for (i in 1:length(nytcolumnists)){
+  n <- vector(length = 0)
+  for(ii in 1:2){
+    tmp <- paste0('http://api.nytimes.com/svc/search/v2/articlesearch.json?fq=section_name:("Opinion")&fq=byline:("',fullnytcolumnists[i],'")&begin_date=20140101&end_date=20151212&sort=newest&page=',ii)
+    tmp <- getForm(tmp, `api-key` = getOption("nytimesid"), .opts=list())
+    tmp <- fromJSON(tmp)
+    tmp <- tmp$response$docs$web_url
+    n <- append(n, tmp)
+  }
+  assign(nytcollink[i], n)
+}
+head(brookslink)
+
+#Download html content for all articles and store in columnist-named folder
+for (i in 1:length(nytcolumnists)){
+  setwd("C:/Users/Andrew/Desktop/Cuny/Data Acquisition/Final Project")
+  dir.create(nytcolumnists[i])
+  setwd(paste0("C:/Users/Andrew/Desktop/Cuny/Data Acquisition/Final Project/",nytcolumnists[i]))
+  for (ii in seq_along(get(nytcollink[i]))){
+    fname <- str_c(ii, ".html")
+    try(download.file((get(nytcollink[i]))[ii], fname))
+  }
+}
+
+#Reads html files into a corpus
+for (i in 1:length(nytcolumnists)){
+  setwd(paste0("C:/Users/Andrew/Desktop/Cuny/Data Acquisition/Final Project/",nytcolumnists[i]))
+  tmp <- readLines("1.html")
+  tmp <- str_c(tmp, collapse = "")
+  tmp <- htmlParse(tmp)
+  tmp <- (xpathApply(tmp, "//div/p[@itemprop='articleBody']", xmlValue))
+  tmp <- str_c(tmp, collapse = "")
+  release <- (iconv(tmp, "latin1", "ASCII", sub=""))
+  nytcolcorp[[i]] <- Corpus(VectorSource(release))
+  meta(nytcolcorp[[i]], "byline") <- nytcolumnists[i]
+  
+  for(ii in 2:length(list.files(pattern=".html"))){
+    tmp <- readLines(str_c(ii,".html"))
+    tmp <- str_c(tmp, collapse = "")
+    tmp <- htmlParse(tmp)
+    tmp <- xpathApply(tmp, "//div/p[@itemprop='articleBody']", xmlValue)
+    tmp <- str_c(tmp, collapse = "")
+    release <- (iconv(tmp, "latin1", "ASCII", sub=""))
+    
+    if (length(release) !=0){
+      tmp_corpus <- Corpus(VectorSource(release))
+      nytcolcorp[[i]] <- c(nytcolcorp[[i]], tmp_corpus, recursive = FALSE)
+      meta(nytcolcorp[[i]], "byline") <- nytcolumnists[i]
+    }
+  }
+}
+table(byline)
+
+#Combine corpus objects
+nytCombCorp <- c(nytcolcorp[[1]], nytcolcorp[[2]], nytcolcorp[[3]], nytcolcorp[[4]], nytcolcorp[[5]], nytcolcorp[[6]], nytcolcorp[[7]], nytcolcorp[[8]], recursive=T)
+table(meta(nytCombCorp, tag = "byline"))
+
+#Clean and simplify data
+nytCombCorp <- tm_map(nytCombCorp, removeNumbers)
+nytCombCorp <- tm_map(nytCombCorp, removePunctuation)
+nytCombCorp <- tm_map(nytCombCorp, stemDocument)
+nytCombCorp <- tm_map(nytCombCorp, removeWords, stopwords('english'))
+
+#Create randomized corpus
+nytCombCorpR <- sample(nytCombCorp)
+nytCombCorpR
+
+#Build document-term matrix. I worried about simplifying with spam. 
+nytDTM <- DocumentTermMatrix(nytCombCorpR)
+
+#Collect meta labels
+bylines <- unlist(meta(nytCombCorpR, "byline")[,1])
+table(bylines)
+```
+
+Explore data
+```{r}
+#Some light statistical analysis to describe the data, highest percent associations
+findAssocs(nytDTM, "clinton", .5)
+findAssocs(nytDTM, "obama", .6)
+
+#Word cloud
+wordcloud(nytCombCorpR, scale=c(5,0.5), max.words=100, random.order=FALSE, rot.per=0.35, use.r.layout=FALSE, colors=brewer.pal(8, "Dark2"))
+```
+
+Train and run models
+```{r}
+#Prepare container
+N <- length(nytDTM)
+container <- create_container(
+  nytDTM,
+  labels = bylines,
+  trainSize = 1:40,
+  testSize = 41:N,
+  virgin = FALSE
+)
+
+slotNames(container)
+
+#Training models
+svm_model <- train_model(container, "SVM")
+rf_model <- train_model(container, "RF")
+maxent_model <- train_model(container, "MAXENT")
+
+#Classifying data
+svm_out <- classify_model(container, svm_model)
+rf_out <- classify_model(container, rf_model)
+maxent_out <- classify_model(container, maxent_model)
+
+head(svm_out)
+head(rf_out)
+head(maxent_out)
+```
+
+Visually, maxentropy appears to have the strongest prediction rates
+```{r}
+ggplot(svm_out, aes(x = SVM_PROB)) + geom_histogram(binwidth = .01)
+svh <- ggplot(svm_out, aes(x = SVM_PROB, fill = SVM_LABEL)) 
+svh + geom_histogram(binwidth = .05) + facet_wrap(~SVM_LABEL)
+
+ggplot(maxent_out, aes(x = MAXENTROPY_PROB)) + geom_histogram(binwidth = .01)
+maxh <- ggplot(maxent_out, aes(x = MAXENTROPY_PROB, fill = MAXENTROPY_LABEL)) 
+maxh + geom_histogram(binwidth = .05) + facet_wrap(~MAXENTROPY_LABEL)
+
+ggplot(rf_out, aes(x = FORESTS_PROB)) + geom_histogram(binwidth = .01)
+frh <- ggplot(rf_out, aes(x = FORESTS_PROB, fill = FORESTS_LABEL)) 
+frh + geom_histogram(binwidth = .05) + facet_wrap(~FORESTS_LABEL)
+```
+
+Inspecting the statistics, maxentropy results have nearly double the mean of the next best, random forests, with well over 3 standard deviations in difference. 
+```{r}
+summary(svm_out$SVM_PROB)
+sd(svm_out$SVM_PROB)
+
+summary(maxent_out$MAXENTROPY_PROB)
+sd(maxent_out$MAXENTROPY_PROB)
+
+summary(rf_out$FORESTS_PROB)
+sd(rf_out$FORESTS_PROB)
+```
+
+```{r}
+max <- data.frame(
+  maxlab = maxent_out$MAXENTROPY_LABEL,
+  maxscore = maxent_out$MAXENTROPY_PROB)
+
+maxT <- max %>%
+  group_by(maxlab) %>%
+  summarize(average=mean(maxscore))
+
+maxT
+#max_ent appeared not to have enough sample to properly train and classify Dowd
+
+svm <- data.frame(
+  svmlab = svm_out$SVM_LABEL,
+  svmscore = svm_out$SVM_PROB)
+
+svmT <- svm %>%
+  group_by(svmlab) %>%
+  summarize(average=mean(svmscore))
+
+svmT
+#support vector machines performed strongest among bruni and krugman
+
+rf <- data.frame(
+  rflab = rf_out$FORESTS_LABEL,
+  rfscore = rf_out$FORESTS_PROB)
+
+rfT <- rf %>%
+  group_by(rflab) %>%
+  summarize(average=mean(rfscore))
+
+rfT
+#random forests performed best among krugman, collins, bruni, and dowd -- the most liberal columnists
+```

@@ -1,0 +1,79 @@
+---
+title: "IS607 FinP2"
+author: "Andrew Goldberg"
+date: "December 14, 2015"
+output: html_document
+---
+
+```{r}
+library(jsonlite)
+library(RCurl)
+library(stringr)
+library(XML)
+library(tm)
+library(stm)
+library(SnowballC)
+library(koRpus)
+library(textreg)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(wordcloud)
+library(RTextTools)
+```
+
+Interested in running some other types of analysis in KoRpus on political speeches!
+```{r}
+#Downloaded txt files, not scraped or api??
+originalspeeches <- "http://www.cs.cmu.edu/~ark/CLIP/data/raw-speeches.tar.gz"
+download.file(originalspeeches, destfile="ospeeches.tar.gz")
+try(untar("ospeeches.tar.gz"))
+
+edwardsprimary <- Corpus(DirSource("edwards-speeches/primary2008"), readerControl = list(language="lat"))
+bidenprimary <- Corpus(DirSource("biden-speeches/primary2008"), readerControl = list(language="lat"))
+clintonprimary <- Corpus(DirSource("clinton_h-speeches/primary2008"), readerControl = list(language="lat"))
+
+#koRpus likes vectors
+edwardsvect <- convert.tm.to.character(edwardsprimary)
+bidenvect <- convert.tm.to.character(bidenprimary)
+clintonvect <- convert.tm.to.character(clintonprimary)
+
+#Collapse vectors
+edwardsC <- str_c(edwardsvect, collapse = "")
+bidenC <- str_c(bidenvect, collapse = "")
+clintonC <- str_c(clintonvect, collapse = "")
+
+#Tokenize vectors
+taggededwards <- tokenize(edwardsC, format="obj", lang="en")
+taggedbiden <- tokenize(bidenC, format="obj", lang="en")
+taggedclinton <- tokenize(clintonC, format="obj", lang="en")
+
+#Hyphenate vectors
+edwards.hypth.txt.en <- hyphen(taggededwards)
+biden.hypth.txt.en <- hyphen(taggedbiden)
+clinton.hypth.txt.en <- hyphen(taggedclinton)
+
+#Score for readability
+edwards.readbl.txt <- readability(taggededwards, hyp=edwards.hypth.txt.en, index="all")
+biden.readbl.txt <- readability(taggedbiden, hyp=biden.hypth.txt.en, index="all")
+clinton.readbl.txt <- readability(taggedclinton, hyp=clinton.hypth.txt.en, index="all")
+
+#Present readability scores
+summary(edwards.readbl.txt)
+summary(biden.readbl.txt)
+summary(clinton.readbl.txt)
+```
+
+This is what it ended up as because biden left early (.csv!)
+```{r}
+originalspeeches <- "http://www.cs.cmu.edu/~ark/CLIP/data/raw-speeches.tar.gz"
+prim08res <- read.csv("http://www.electoral-vote.com/evp2008/Data/primaries.csv")
+primdat <- data.frame(prim08res$State, prim08res$Clinton, prim08res$Obama, prim08res$Edwards)
+
+head(primdat)
+primRes <- primdat %>%
+  gather(State, cand, 2:4) %>%
+  group_by(State) %>%
+  summarize(average=mean(cand, na.rm= TRUE))
+#Averaged over the full race, Clinton held more aggregate support!
+```
